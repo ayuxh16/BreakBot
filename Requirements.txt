@@ -1,0 +1,250 @@
+=================================================================
+PROJECT REQUIREMENTS DOCUMENT
+Project Name: [TBD] - Workflow-Aware Web App Security & QA Tester
+=================================================================
+
+-----------------------------------------------------------------
+1. PROBLEM STATEMENT
+-----------------------------------------------------------------
+Most developers and small teams ship web apps without any
+adversarial testing beyond manual QA. Existing DAST (Dynamic
+Application Security Testing) tools like OWASP ZAP or Burp Suite
+are powerful but heavy, enterprise-oriented, and test individual
+inputs/fields in isolation rather than understanding what a user
+workflow is actually trying to do. There is no lightweight,
+self-serve tool that lets a developer paste in their deployed
+URL and get back a workflow-aware breakdown of what can be broken,
+with proof that each finding is real.
+
+-----------------------------------------------------------------
+2. WHAT WE ARE DELIVERING
+-----------------------------------------------------------------
+A web application where a user can:
+  1. Submit a URL of a webapp they own.
+  2. Prove ownership via a DNS TXT record or a /.well-known/ file
+     challenge (no test run starts before this passes).
+  3. Trigger an automated test run that:
+       a. Crawls the site (headless browser) to discover pages,
+          forms, and API endpoints.
+       b. Runs functional fuzz tests (boundary values, malformed
+          input, wrong types) against discovered inputs.
+       c. Runs API robustness tests (malformed JSON, wrong verbs,
+          missing auth) against discovered endpoints.
+       d. Runs non-destructive security checks (reflected XSS
+          probes, security header audit, cookie flag audit,
+          IDOR checks, CSRF token presence).
+       e. Runs an LLM-driven agent that reasons over the crawled
+          site to construct and execute multi-step, stateful
+          "business logic" attack chains (e.g. tampering with an
+          order between checkout steps, replaying a payment
+          request, walking sequential resource IDs across a
+          session) - this is the core differentiator vs.
+          existing tools.
+  4. View a live dashboard of the running test (progress, current
+     step, discovered issues as they're found).
+  5. Receive a severity-ranked findings report, where each finding
+     includes a reproducible proof-of-exploit: exact request/
+     response pair, a replayable curl command, and (where
+     applicable) a captured screenshot/recording of the exploit.
+
+-----------------------------------------------------------------
+3. TARGET MARKET
+-----------------------------------------------------------------
+Primary: Indie developers, small startups, and student/hobby
+project teams who want a pre-launch security & robustness check
+but cannot afford or justify enterprise DAST tools (Burp Suite
+Enterprise, Checkmarx, Invicti) or a manual pentest.
+
+Secondary: Bootcamp/college teams building capstone webapps who
+want an automated "did I miss anything obvious" pass before
+submission or demo day.
+
+Explicitly NOT targeting (out of scope for this project):
+  - Enterprise security teams needing compliance reporting,
+    SSO, ticketing integrations, or CVE/signature-database
+    breadth (this is what Burp/Checkmarx/Invicti already do
+    well - not worth competing on).
+  - Mobile app or native binary security testing.
+  - Any target the submitter cannot prove ownership of.
+
+-----------------------------------------------------------------
+4. FUNCTIONAL REQUIREMENTS
+-----------------------------------------------------------------
+FR1  Domain ownership verification (DNS TXT record OR
+     /.well-known/ file challenge) required before any test run.
+FR2  Account system (email + OTP) to tie test runs to a user -
+     no government ID collection.
+FR3  Async job queue for test runs (runs can take minutes).
+FR4  Crawler that maps site structure: pages, forms, discovered
+     API endpoints.
+FR5  Functional fuzz testing module.
+FR6  API robustness testing module.
+FR7  Non-destructive security check module (OWASP Top 10 subset).
+FR8  LLM agent module for multi-step business-logic attack
+     chains, with session-state tracking across steps.
+FR9  Findings report: severity ranking + reproducible proof for
+     every finding (request/response pair, curl command).
+FR10 Live-progress dashboard for an in-progress test run.
+FR11 Rate limiting per verified domain/account.
+FR12 Isolated execution - each test run executes inside an
+     ephemeral, sandboxed environment so a target cannot affect
+     the platform's own infrastructure.
+
+-----------------------------------------------------------------
+5. NON-FUNCTIONAL REQUIREMENTS
+-----------------------------------------------------------------
+NFR1  Test runs must not perform destructive actions by default
+      (no data deletion, no irreversible state changes) unless
+      explicitly opted into by the verified owner.
+NFR2  Test execution must be horizontally scalable (multiple
+      concurrent test runs across workers/pods).
+NFR3  All test-run activity must be logged/auditable per
+      verified domain and account.
+NFR4  Findings must be reproducible - a finding without a
+      replayable proof is not reported as a finding.
+NFR5  System should validate itself against a known-vulnerable
+      reference app (e.g. OWASP Juice Shop) as a correctness
+      benchmark before being considered "working."
+
+-----------------------------------------------------------------
+6. TECH STACK - OVERVIEW BY COMPONENT
+-----------------------------------------------------------------
+
+FRONTEND
+  - React + Next.js       -> dashboard, findings report UI, progress view
+  - TypeScript             -> type safety across the frontend
+  - Tailwind CSS           -> styling
+  - Recharts / D3.js       -> visualizing progress, severity breakdowns
+  - Socket.io / SSE        -> live progress updates during a test run
+
+BACKEND
+  - Node.js + TypeScript   -> main API server
+  - Express or Fastify     -> HTTP framework
+  - PostgreSQL             -> primary datastore (users, domains, runs, findings)
+  - Prisma or Drizzle ORM  -> type-safe DB access
+  - Redis                  -> caching + job queue backing store
+  - BullMQ                 -> async job queue for long-running test runs
+
+CRAWLING & TEST EXECUTION
+  - Playwright             -> headless browser: crawling, form discovery,
+                              executing multi-step flows
+  - Docker                 -> sandboxes each test run in an isolated,
+                              disposable container
+  - axios/undici           -> direct API fuzzing outside the browser context
+
+LLM / AGENT LAYER
+  - LLM API (OpenAI/Anthropic) or local model via Ollama (zero-cost dev)
+                            -> powers the business-logic reasoning agent
+  - LangChain or a hand-rolled agent loop (as in DevFlow Agent)
+                            -> plans and executes multi-step attack chains
+  - pgvector on Postgres    -> optional memory of patterns across a site
+
+INFRA / DEVOPS
+  - Docker Compose          -> local development environment
+  - Kubernetes + Helm       -> production deployment, scaling test workers
+  - Terraform               -> provisioning cloud infra
+  - GitHub Actions          -> CI, including the Juice Shop benchmark run
+  - Grafana + Prometheus    -> monitoring worker health, queue depth, run time
+
+AUTH & VERIFICATION
+  - Email + OTP (e.g. Resend or self-rolled) -> account auth, no ID collection
+  - Node's built-in `dns` module              -> DNS TXT record verification
+  - /.well-known/ file-check module           -> alternate verification path
+
+TESTING (of your own tool)
+  - Jest / Vitest           -> unit tests
+  - OWASP Juice Shop        -> deliberately vulnerable ground-truth benchmark
+  - Playwright Test         -> end-to-end tests of your own dashboard/flows
+
+-----------------------------------------------------------------
+7. TEAM ROLES NEEDED
+-----------------------------------------------------------------
+Even building solo, these are the "hats" the project requires,
+and roughly the order to work through them (each layer needs the
+one before it to test against):
+
+  Backend/API engineer
+    - Auth, job queue, DB schema, ownership verification
+    - Maps to: DevFlow Agent, ATS Resume Checker experience
+
+  Crawler/test-execution engineer
+    - Playwright crawler, fuzzers, sandboxing
+    - New territory - closest is systems/networking background
+
+  LLM/agent engineer
+    - Business-logic reasoning agent, prompt design, session-state
+    - Maps to: NeuroScope (PyTorch/LLM work), DevFlow Agent
+
+  Frontend engineer
+    - Dashboard, live progress, findings report UI
+    - Maps to: PorterSaathi, MiniKafka dashboard
+
+  DevOps/infra engineer
+    - K8s, Helm, Terraform, CI, monitoring
+    - Maps to: MiniKafka (Helm + Terraform already written there)
+
+  Security/QA domain lead
+    - Decides which checks are meaningful, validates findings
+      aren't false positives, owns the Juice Shop benchmark
+    - New role - the one that makes the tool trustworthy
+
+  Suggested solo build order:
+  Backend -> Crawler -> Frontend (basic) -> LLM agent ->
+  DevOps/scaling -> Security validation
+
+-----------------------------------------------------------------
+8. ACCOUNTS / EXTERNAL SERVICES NEEDED
+-----------------------------------------------------------------
+  - A cloud provider account (AWS/GCP/Azure - pick one)
+  - An LLM API key (or local Ollama setup for zero-cost dev)
+  - A domain name (to test the DNS-verification flow against
+    something real)
+  - A Docker Hub or GitHub Container Registry account
+  - A monitoring/alerting stack (Grafana Cloud free tier, or
+    self-hosted on your own K8s cluster)
+
+-----------------------------------------------------------------
+9. LOCAL DEV ENVIRONMENT REQUIREMENTS
+-----------------------------------------------------------------
+  - Node.js (LTS) + npm/pnpm
+  - Docker + Docker Compose
+  - A local Kubernetes setup for testing Helm charts (kind or
+    minikube - you've already used `kind` for MiniKafka)
+  - Terraform CLI
+  - Playwright's browser binaries (`npx playwright install`)
+  - Postgres + Redis (via Docker Compose locally, or a managed
+    dev instance)
+
+-----------------------------------------------------------------
+10. SUGGESTED REPO STRUCTURE
+-----------------------------------------------------------------
+  /apps
+    /web         -> Next.js dashboard
+    /api         -> Node/TS backend
+    /worker      -> test-execution worker (Playwright + fuzzers + LLM agent)
+  /packages
+    /shared      -> shared types between api/web/worker
+  /infra
+    /terraform   -> cloud provisioning
+    /helm        -> k8s chart definitions
+  /.github/workflows -> CI pipelines (including Juice Shop benchmark run)
+
+-----------------------------------------------------------------
+11. OUT OF SCOPE (v1)
+-----------------------------------------------------------------
+  - Government ID / KYC verification of any kind.
+  - Compliance reporting (SOC2, PCI-DSS style reports).
+  - Mobile/native app testing.
+  - Full CVE/signature-database parity with commercial tools.
+  - Destructive/irreversible testing by default.
+
+-----------------------------------------------------------------
+12. SUCCESS METRICS
+-----------------------------------------------------------------
+  - Tool correctly identifies the seeded vulnerabilities in
+    OWASP Juice Shop (ground-truth validation).
+  - End-to-end flow works: submit URL -> verify ownership ->
+    run test -> view report, with no manual intervention.
+  - At least one working example of a multi-step business-logic
+    attack chain caught that a single-request fuzzer would miss.
+=================================================================
