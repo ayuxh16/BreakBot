@@ -1,6 +1,6 @@
 =================================================================
 PROJECT REQUIREMENTS DOCUMENT
-Project Name: [TBD] - Workflow-Aware Web App Security & QA Tester
+Project Name: BreakBot - Workflow-Aware Web App Security & QA Tester
 =================================================================
 
 -----------------------------------------------------------------
