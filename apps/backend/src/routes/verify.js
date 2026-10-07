@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { startVerification, checkVerification } from "../controllers/verifyController.js";
+import { startVerification, checkVerification, listDomains } from "../controllers/verifyController.js";
 
 const router = Router();
 
