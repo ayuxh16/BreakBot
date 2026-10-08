@@ -5,6 +5,7 @@ export default function Domains() {
   const [domains, setDomains] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [scanningId, setScanningId] = useState(null);
 
   useEffect(() => {
     fetch("http://localhost:4000/domains")
@@ -14,6 +15,25 @@ export default function Domains() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function runScan(domainId) {
+    setScanningId(domainId);
+    setError(null);
+    try {
+      const res = await fetch("http://localhost:4000/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domainId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Scan failed");
+      window.location.href = `/report/${data.runId}`;
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScanningId(null);
+    }
+  }
+
   return (
     <DashboardLayout crumb="BreakBot / Domains" title="Domains">
       <p className="text-slate-400 text-sm -mt-4 mb-8">
@@ -21,7 +41,12 @@ export default function Domains() {
       </p>
 
       {loading && <p className="text-sm text-slate-500">Loading...</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
+      {scanningId !== null && (
+        <p className="text-xs text-slate-400 mb-4">
+          Crawling and scanning. This can take a minute, so please keep this page open.
+        </p>
+      )}
 
       {!loading && !error && domains.length === 0 && (
         <p className="text-sm text-slate-500">No domains yet. Add one from New Scan.</p>
@@ -44,18 +69,11 @@ export default function Domains() {
 
               {d.verified && (
                 <button
-                  onClick={async () => {
-                    const res = await fetch("http://localhost:4000/runs", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ domainId: d.id }),
-                    });
-                    const data = await res.json();
-                    if (res.ok) window.location.href = `/report/${data.runId}`;
-                  }}
-                  className="text-xs text-accent hover:underline ml-3"
+                  onClick={() => runScan(d.id)}
+                  disabled={scanningId !== null}
+                  className="text-xs text-accent hover:underline ml-3 disabled:opacity-50"
                 >
-                  Run scan
+                  {scanningId === d.id ? "Scanning..." : "Run scan"}
                 </button>
               )}
             </div>

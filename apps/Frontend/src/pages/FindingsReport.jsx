@@ -60,10 +60,11 @@ export default function FindingsReport() {
         <div>
           <p className="text-sm font-medium">
             Scan {run.status} — {findings.length} finding{findings.length !== 1 ? "s" : ""}
+            {run.pages_scanned > 0 && ` across ${run.pages_scanned} pages`}
           </p>
           <p className="text-xs text-slate-400">
             Started {new Date(run.started_at).toLocaleString()}
-            {run.completed_at && ` · Completed ${new Date(run.completed_at).toLocaleString()}`}
+            {run.completed_at && ` · Finished ${new Date(run.completed_at).toLocaleString()}`}
           </p>
         </div>
       </div>
@@ -71,7 +72,7 @@ export default function FindingsReport() {
       <div className="grid grid-cols-4 gap-4 mb-10">
         {Object.entries(counts).map(([sev, count]) => (
           <div key={sev} className="border border-line rounded-xl p-5 bg-panel/60">
-            <p className="text-2xl font-semibold capitalize">{count}</p>
+            <p className="text-2xl font-semibold">{count}</p>
             <p className="text-xs text-slate-500 mt-1 capitalize">{sev} findings</p>
           </div>
         ))}
@@ -91,13 +92,41 @@ export default function FindingsReport() {
             {findings.map((f) => (
               <div key={f.id} className="px-5 py-4">
                 <div className="flex items-center gap-3 mb-1">
-                  <span className={`text-xs px-2 py-1 rounded-full shrink-0 capitalize ${severityStyles[f.severity] || ""}`}>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full shrink-0 capitalize ${
+                      severityStyles[f.severity] || ""
+                    }`}
+                  >
                     {f.severity}
                   </span>
                   <p className="text-sm font-medium">{f.title}</p>
                 </div>
-                {f.detail && (
-                  <p className="text-xs text-slate-500 ml-1">{f.detail}</p>
+
+                {f.detail && <p className="text-xs text-slate-500">{f.detail}</p>}
+                {f.page_url && (
+                  <p className="text-xs text-slate-500 mt-1 break-all">Page: {f.page_url}</p>
+                )}
+
+                {f.evidence && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-accent cursor-pointer">Show proof</summary>
+                    <div className="mt-2 space-y-3">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Replay with curl</p>
+                        <code className="block bg-black/30 rounded px-2 py-1 text-xs break-all">
+                          {f.evidence.curl}
+                        </code>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">
+                          Response ({f.evidence.response?.status}) headers
+                        </p>
+                        <pre className="bg-black/30 rounded px-2 py-1 text-xs overflow-x-auto">
+                          {JSON.stringify(f.evidence.response?.headers, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  </details>
                 )}
               </div>
             ))}

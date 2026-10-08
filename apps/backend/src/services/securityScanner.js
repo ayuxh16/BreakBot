@@ -1,76 +1,85 @@
-export async function scanSecurityHeaders(domain) {
-  const findings = [];
-  const url = domain.startsWith("http") ? domain : `https://${domain}`;
-
+// Scans one page's response headers and cookies. Every finding carries the
+// evidence needed to reproduce it: request, response headers, curl command.
+export async function scanPage(pageUrl) {
   let response;
   try {
-    response = await fetch(url, { redirect: "follow" });
-  } catch (err) {
-    findings.push({
-      severity: "critical",
-      title: "Site unreachable",
-      detail: `Could not connect to ${url}: ${err.message}`,
-    });
-    return findings;
+    response = await fetch(pageUrl, { redirect: "follow" });
+  } catch {
+    return [];
   }
 
   const headers = response.headers;
+  const isHttps = response.url.startsWith("https://");
 
-  if (!headers.get("content-security-policy")) {
-    findings.push({
-      severity: "medium",
-      title: "Missing Content-Security-Policy header",
-      detail: "No CSP header found. This increases risk of XSS attacks.",
-    });
+  const evidence = {
+    request: { method: "GET", url: pageUrl },
+    response: {
+      status: response.status,
+      finalUrl: response.url,
+      headers: Object.fromEntries(headers.entries()),
+    },
+    curl: `curl -i -L '${pageUrl}'`,
+  };
+
+  const findings = [];
+  const add = (severity, title, detail) =>
+    findings.push({ severity, title, detail, evidence });
+
+  const csp = headers.get("content-security-policy");
+
+  if (!csp) {
+    add(
+      "medium",
+      "Missing Content-Security-Policy header",
+      "No CSP header found. This increases the impact of XSS attacks."
+    );
   }
 
-  if (!headers.get("strict-transport-security")) {
-    findings.push({
-      severity: "medium",
-      title: "Missing Strict-Transport-Security header",
-      detail: "HSTS header not set. Site may be vulnerable to protocol downgrade attacks.",
-    });
+  if (isHttps && !headers.get("strict-transport-security")) {
+    add(
+      "medium",
+      "Missing Strict-Transport-Security header",
+      "HSTS is not set, so browsers can be tricked into using plain HTTP."
+    );
   }
 
-  if (!headers.get("x-frame-options") && !headers.get("content-security-policy")?.includes("frame-ancestors")) {
-    findings.push({
-      severity: "low",
-      title: "Missing X-Frame-Options header",
-      detail: "Site may be vulnerable to clickjacking via iframe embedding.",
-    });
+  if (!headers.get("x-frame-options") && !(csp && csp.includes("frame-ancestors"))) {
+    add(
+      "low",
+      "Missing clickjacking protection",
+      "Neither X-Frame-Options nor a CSP frame-ancestors rule is set, so the page can be embedded in a malicious iframe."
+    );
   }
 
   if (!headers.get("x-content-type-options")) {
-    findings.push({
-      severity: "low",
-      title: "Missing X-Content-Type-Options header",
-      detail: "Browsers may MIME-sniff responses, which can lead to security issues.",
-    });
+    add(
+      "low",
+      "Missing X-Content-Type-Options header",
+      "Browsers may MIME-sniff responses, which can turn uploads or errors into executable content."
+    );
   }
 
-  if (!url.startsWith("https://")) {
-    findings.push({
-      severity: "high",
-      title: "Site not served over HTTPS",
-      detail: "Traffic to this site is unencrypted.",
-    });
+  if (!isHttps) {
+    add("high", "Page served over plain HTTP", "Traffic to this page is unencrypted.");
   }
 
-  const setCookie = headers.get("set-cookie");
-  if (setCookie && !setCookie.toLowerCase().includes("httponly")) {
-    findings.push({
-      severity: "medium",
-      title: "Cookie missing HttpOnly flag",
-      detail: "Cookies without HttpOnly can be accessed via JavaScript, increasing XSS impact.",
-    });
-  }
-
-  if (findings.length === 0) {
-    findings.push({
-      severity: "low",
-      title: "No obvious header issues found",
-      detail: "Basic security headers appear to be present. This is a shallow check — not a full audit.",
-    });
+  for (const cookie of headers.getSetCookie()) {
+    const name = cookie.split("=")[0].trim();
+    const lower = cookie.toLowerCase();
+    if (!lower.includes("httponly")) {
+      add(
+        "medium",
+        `Cookie "${name}" missing HttpOnly flag`,
+        "JavaScript can read this cookie, which raises the impact of any XSS."
+      );
+    }
+    if (isHttps && !lower.includes("secure")) {
+      add(
+        "medium",
+        `Cookie "${name}" missing Secure flag`,
+        "This cookie can be sent over unencrypted connections."
+      );
+    }
   }
 
   return findings;
