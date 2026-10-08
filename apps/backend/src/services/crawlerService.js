@@ -1,11 +1,25 @@
 import * as cheerio from "cheerio";
 
-// up to maxPages. Returns an array of { url, links, forms }.
+function normalizeUrl(rawUrl) {
+  const u = new URL(rawUrl);
+  u.hash = "";
+  let href = u.href;
+  if (href.endsWith("/") && u.pathname !== "/") {
+    href = href.slice(0, -1);
+  }
+  if (u.pathname === "/" && !u.search) {
+    href = href.replace(/\/$/, "");
+  }
+  return href;
+}
+
 export async function crawlSite(baseUrl, maxPages = 15) {
-  const normalizedBase = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
+  const start = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
+  const normalizedBase = normalizeUrl(start);
   const baseHost = new URL(normalizedBase).host;
 
   const visited = new Set();
+  const queued = new Set([normalizedBase]);
   const queue = [normalizedBase];
   const results = [];
 
@@ -25,24 +39,25 @@ export async function crawlSite(baseUrl, maxPages = 15) {
 
     const $ = cheerio.load(html);
 
-    // Discover links, keep only same-domain ones
     const links = [];
     $("a[href]").each((_, el) => {
       const href = $(el).attr("href");
       try {
-        const absolute = new URL(href, url).href;
-        if (new URL(absolute).host === baseHost) {
-          links.push(absolute);
-          if (!visited.has(absolute) && queue.length + visited.size < maxPages) {
-            queue.push(absolute);
-          }
+        const absolute = new URL(href, url);
+        if (!["http:", "https:"].includes(absolute.protocol)) return;
+        if (absolute.host !== baseHost) return;
+        const normalized = normalizeUrl(absolute.href);
+        links.push(normalized);
+        if (!visited.has(normalized) && !queued.has(normalized)) {
+          queued.add(normalized);
+          queue.push(normalized);
         }
       } catch {
-        // invalid href (e.g. "javascript:void(0)"), skip
+        // invalid href, skip
       }
     });
 
-    // Discover forms and their input fields
+    const seenForms = new Set();
     const forms = [];
     $("form").each((_, formEl) => {
       const action = $(formEl).attr("action") || url;
@@ -55,10 +70,14 @@ export async function crawlSite(baseUrl, maxPages = 15) {
           const type = $(fieldEl).attr("type") || "text";
           if (name) fields.push({ name, type });
         });
-      forms.push({ action, method, fields });
+      const signature = JSON.stringify({ action, method, fields });
+      if (!seenForms.has(signature)) {
+        seenForms.add(signature);
+        forms.push({ action, method, fields });
+      }
     });
 
-    results.push({ url, links, forms });
+    results.push({ url, links: [...new Set(links)], forms });
   }
 
   return results;

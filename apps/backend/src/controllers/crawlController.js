@@ -22,6 +22,7 @@ export async function startCrawl(req, res) {
 
     const domain = domainResult.rows[0];
     const pages = await crawlSite(domain.url);
+    await pool.query("DELETE FROM crawled_pages WHERE domain_id = $1", [domainId]);
 
     for (const page of pages) {
       await pool.query(
