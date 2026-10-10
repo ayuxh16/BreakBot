@@ -80,6 +80,9 @@ export async function startRun(req, res) {
 
 export async function getRun(req, res) {
   const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: "Invalid run id" });
+  }
 
   try {
     const runResult = await pool.query(
