@@ -1,6 +1,7 @@
 import { pool } from "../db/pool.js";
 import { crawlSite } from "../services/crawlerService.js";
 import { scanPage } from "../services/securityScanner.js";
+import {testLoginSqlInjection} from "../services/apiFuzzer.js";
 
 export async function startRun(req, res) {
   const { domainId } = req.body;
@@ -36,6 +37,15 @@ export async function startRun(req, res) {
 
     await pool.query("DELETE FROM crawled_pages WHERE domain_id = $1", [domainId]);
     for (const page of pages) {
+       const vulnFindings = await testLoginSqlInjection(domain.url);
+      for (const f of vulnFindings) {
+        await pool.query(
+          `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
+          VALUES ($1, $2, $3, $4, $5, $6)`,
+          [runId, f.severity, f.title, f.detail, `${domain.url}/rest/user/login`, JSON.stringify(f.evidence)]
+        );
+        findingsCount++;
+      }
       await pool.query(
         "INSERT INTO crawled_pages (domain_id, url, forms) VALUES ($1, $2, $3)",
         [domainId, page.url, JSON.stringify(page.forms || [])]
