@@ -1,7 +1,9 @@
-﻿import { pool } from "../db/pool.js";
+import { pool } from "../db/pool.js";
 import { crawlSite } from "../services/crawlerService.js";
 import { scanPage } from "../services/securityScanner.js";
 import { testLoginSqlInjection } from "../services/apiFuzzer.js";
+import { fuzzForm } from "../services/formFuzzer.js";
+
 
 export async function startRun(req, res) {
   const { domainId } = req.body;
@@ -57,6 +59,20 @@ export async function startRun(req, res) {
           [runId, f.severity, f.title, f.detail, page.url, JSON.stringify(f.evidence)]
         );
         findingsCount++;
+      }
+    }
+
+      for (const page of pages) {
+      for (const form of page.forms || []) {
+        const formFindings = await fuzzForm(form, domain.url);
+        for (const f of formFindings) {
+          await pool.query(
+            `INSERT INTO findings (run_id, severity, title, detail, page_url, form_field, evidence)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [runId, f.severity, f.title, f.detail, page.url, f.formField, JSON.stringify(f.evidence)]
+          );
+          findingsCount++;
+        }
       }
     }
 
