@@ -1,9 +1,5 @@
-import { pool } from "../db/pool.js";
-import { crawlSite } from "../services/crawlerService.js";
-import { scanPage } from "../services/securityScanner.js";
-import { testLoginSqlInjection } from "../services/apiFuzzer.js";
-import { fuzzForm } from "../services/formFuzzer.js";
-
+﻿import { pool } from "../db/pool.js";
+import { scanQueue } from "../queue.js";
 
 export async function startRun(req, res) {
   const { domainId } = req.body;
@@ -11,8 +7,6 @@ export async function startRun(req, res) {
   if (!domainId) {
     return res.status(400).json({ error: "domainId is required" });
   }
-
-  let runId = null;
 
   try {
     const domainResult = await pool.query(
@@ -26,80 +20,18 @@ export async function startRun(req, res) {
       });
     }
 
-    const domain = domainResult.rows[0];
-
     const runResult = await pool.query(
-      "INSERT INTO runs (domain_id, status) VALUES ($1, 'running') RETURNING id",
+      "INSERT INTO runs (domain_id, status) VALUES ($1, 'queued') RETURNING id",
       [domainId]
     );
-    runId = runResult.rows[0].id;
+    const runId = runResult.rows[0].id;
 
-    let pagesScanned = 0;
-    let findingsCount = 0;
+    await scanQueue.add("scan", { runId, domainId });
 
-    const pages = await crawlSite(domain.url);
-
-    await pool.query("DELETE FROM crawled_pages WHERE domain_id = $1", [domainId]);
-    for (const page of pages) {
-      await pool.query(
-        "INSERT INTO crawled_pages (domain_id, url, forms) VALUES ($1, $2, $3)",
-        [domainId, page.url, JSON.stringify(page.forms || [])]
-      );
-    }
-
-    for (const page of pages) {
-      if (page.error) continue;
-      pagesScanned++;
-
-      const findings = await scanPage(page.url);
-      for (const f of findings) {
-        await pool.query(
-          `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [runId, f.severity, f.title, f.detail, page.url, JSON.stringify(f.evidence)]
-        );
-        findingsCount++;
-      }
-    }
-
-      for (const page of pages) {
-      for (const form of page.forms || []) {
-        const formFindings = await fuzzForm(form, domain.url);
-        for (const f of formFindings) {
-          await pool.query(
-            `INSERT INTO findings (run_id, severity, title, detail, page_url, form_field, evidence)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [runId, f.severity, f.title, f.detail, page.url, f.formField, JSON.stringify(f.evidence)]
-          );
-          findingsCount++;
-        }
-      }
-    }
-
-    const vulnFindings = await testLoginSqlInjection(domain.url);
-    for (const f of vulnFindings) {
-      await pool.query(
-        `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [runId, f.severity, f.title, f.detail, `${domain.url}/rest/user/login`, JSON.stringify(f.evidence)]
-      );
-      findingsCount++;
-    }
-
-    await pool.query(
-      "UPDATE runs SET status = 'completed', completed_at = NOW(), pages_scanned = $2 WHERE id = $1",
-      [runId, pagesScanned]
-    );
-
-    res.json({ runId, pagesScanned, findingsCount });
+    res.json({ runId, status: "queued" });
   } catch (err) {
-    console.error("RUN FAILED:", err);
-    if (runId) {
-      await pool
-        .query("UPDATE runs SET status = 'failed', completed_at = NOW() WHERE id = $1", [runId])
-        .catch(() => {});
-    }
-    res.status(500).json({ error: "Scan failed" });
+    console.error("ENQUEUE FAILED:", err);
+    res.status(500).json({ error: "Failed to queue scan" });
   }
 }
 

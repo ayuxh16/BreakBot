@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "breakbot-backend",
   "private": true,
   "version": "0.1.0",
@@ -6,15 +6,17 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
+    "worker": "node src/worker.js",
     "start": "node src/index.js"
   },
   "dependencies": {
+    "bullmq": "^6.3.17",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.1",
-    "playright": "^0.0.22",
     "playwright": "^1.64.1"
   }
 }
