@@ -141,39 +141,39 @@ async function handleVerify() {
           )}
 
           {verifyResult && (
-            <div className="border border-accent/30 bg-accent/5 rounded-lg p-4 text-sm space-y-3">
-              <div>
-                <p className="font-medium mb-1">
-                  Add this TXT record to verify ownership:
-                </p>
-                <code className="block bg-black/30 rounded px-2 py-1 text-xs break-all">
-                  {verifyResult.token}
-                </code>
-              </div>
+  <div className="border border-accent/30 bg-accent/5 rounded-lg p-4 text-sm space-y-3">
+    <div>
+      <p className="font-medium mb-1">Option A — DNS TXT record</p>
+      <p className="text-xs text-slate-400 mb-1">Add a TXT record with this value:</p>
+      <code className="block bg-black/30 rounded px-2 py-1 text-xs break-all">
+        {verifyResult.token}
+      </code>
+    </div>
+    <div>
+      <p className="font-medium mb-1">Option B — file upload (for Vercel/Netlify/GitHub Pages)</p>
+      <p className="text-xs text-slate-400 mb-1">
+        Create <code>/.well-known/breakbot-verify.txt</code> in your deployed site containing exactly:
+      </p>
+      <code className="block bg-black/30 rounded px-2 py-1 text-xs break-all">
+        {verifyResult.token}
+      </code>
+    </div>
 
-              <button
-                onClick={handleCheckNow}
-                disabled={checking}
-                className="text-xs text-accent hover:underline disabled:opacity-50"
-              >
-                {checking ? "Checking..." : "I've added the record — check now"}
-              </button>
+    <button
+      onClick={handleCheckNow}
+      disabled={checking}
+      className="text-xs text-accent hover:underline disabled:opacity-50"
+    >
+      {checking ? "Checking..." : "I've added it — check now"}
+    </button>
 
-              {checkResult === "verified" && (
-                <p className="text-xs text-emerald-400">✔ Verified!</p>
-              )}
-              {checkResult === "not-verified" && (
-                <p className="text-xs text-slate-400">
-                  Not verified yet — DNS may still be propagating. Try again in a minute.
-                </p>
-              )}
-              {checkResult === "error" && (
-                <p className="text-xs text-red-400">
-                  Something went wrong checking verification.
-                </p>
-              )}
-            </div>
-          )}
+    {checkResult === "verified" && <p className="text-xs text-emerald-400">✔ Verified!</p>}
+    {checkResult === "not-verified" && (
+      <p className="text-xs text-slate-400">Not verified yet via DNS or file. Try again shortly.</p>
+    )}
+    {checkResult === "error" && <p className="text-xs text-red-400">Something went wrong checking verification.</p>}
+  </div>
+)}
 
           <p className="text-xs text-slate-500 text-center">
             This is a simulated scan. No requests will be sent to the target.
