@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+
 import { useParams } from "react-router-dom";
+
 import DashboardLayout from "../components/DashboardLayout";
+
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 const severityStyles = {
@@ -116,6 +119,18 @@ export default function FindingsReport() {
             {run.completed_at && ` · Finished ${new Date(run.completed_at).toLocaleString()}`}
           </p>
         </div>
+      </div>
+
+      {/* What was tested */}
+      <div className="border border-line rounded-xl bg-panel/60 p-5 mb-8">
+        <p className="text-sm font-medium mb-2">What was tested</p>
+        <ul className="text-xs text-slate-400 space-y-1">
+          <li>Crawled {run.pages_scanned} page{run.pages_scanned !== 1 ? "s" : ""} on {run.url}</li>
+          <li>Checked security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) on each page</li>
+          <li>Checked cookie flags (HttpOnly, Secure) on each page</li>
+          <li>Tested the login endpoint for SQL injection bypass</li>
+          <li>Fuzzed discovered forms with malformed input</li>
+        </ul>
       </div>
 
       <div className="grid grid-cols-4 gap-4 mb-10">

@@ -3,8 +3,6 @@ import { chromium } from "playwright";
 
 function normalizeUrl(rawUrl) {
   const u = new URL(rawUrl);
-  // Keep hash-based routes (e.g. #/login) since SPAs like Angular use them
-  // as real pages. Only strip plain anchors.
   if (!u.hash.startsWith("#/")) {
     u.hash = "";
   }
@@ -41,7 +39,7 @@ export async function crawlSite(baseUrl, maxPages = 15) {
       let html;
       try {
         await page.goto(url, { waitUntil: "networkidle", timeout: 15000 });
-        await page.waitForTimeout(500); // let Angular finish rendering
+        await page.waitForTimeout(500);
         html = await page.content();
       } catch (err) {
         results.push({ url, error: err.message, links: [], forms: [] });
@@ -51,22 +49,45 @@ export async function crawlSite(baseUrl, maxPages = 15) {
       const $ = cheerio.load(html);
 
       const links = [];
-      $("a[href]").each((_, el) => {
-        const href = $(el).attr("href");
+      const addDiscovered = (absoluteUrl) => {
         try {
-          const absolute = new URL(href, url);
-          if (!["http:", "https:"].includes(absolute.protocol)) return;
-          if (absolute.host !== baseHost) return;
-          const normalized = normalizeUrl(absolute.href);
+          const abs = new URL(absoluteUrl, url);
+          if (!["http:", "https:"].includes(abs.protocol)) return;
+          if (abs.host !== baseHost) return;
+          const normalized = normalizeUrl(abs.href);
           links.push(normalized);
-          if (!visited.has(normalized) && !queued.has(normalized)) {
+          if (!visited.has(normalized) && !queued.has(normalized) && visited.size + queue.length < maxPages) {
             queued.add(normalized);
             queue.push(normalized);
           }
-        } catch {
-          // invalid href, skip
+        } catch {}
+      };
+
+      $("a[href]").each((_, el) => addDiscovered($(el).attr("href")));
+
+      // Deep crawl: click interactive elements that have no real href
+      // (common in SPA nav bars/buttons), capture where they navigate to.
+      try {
+        const clickable = await page.$$(
+          'nav button, nav [role="button"], header button, [data-testid*="nav"] button, button:not([disabled])'
+        );
+        for (const el of clickable.slice(0, 8)) {
+          try {
+            await el.click({ timeout: 1500 });
+            await page.waitForTimeout(400);
+            const newUrl = page.url();
+            if (newUrl !== url) addDiscovered(newUrl);
+          } catch {
+            // element not clickable or caused a crash, skip
+          } finally {
+            if (page.url() !== url) {
+              await page.goto(url, { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
+            }
+          }
         }
-      });
+      } catch {
+        // click-based discovery failed entirely, fall back to link-only results
+      }
 
       const seenForms = new Set();
       const forms = [];
