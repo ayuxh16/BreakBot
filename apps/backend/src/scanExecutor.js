@@ -20,6 +20,7 @@ export async function executeScan(runId, domain) {
     );
   }
 
+  console.log("executeScan: pages to scan =", pages.length, pages.map(p => ({ url: p.url, error: p.error })));
   for (const page of pages) {
     if (page.error) continue;
     pagesScanned++;
