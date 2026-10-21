@@ -3,6 +3,7 @@ import { crawlSite } from "./services/crawlerService.js";
 import { scanPage } from "./services/securityScanner.js";
 import { testLoginSqlInjection } from "./services/apiFuzzer.js";
 import { fuzzForm } from "./services/formFuzzer.js";
+import { testXss } from "./services/xssTester.js";
 
 export async function executeScan(runId, domain) {
   let pagesScanned = 0;
@@ -20,7 +21,6 @@ export async function executeScan(runId, domain) {
     );
   }
 
-  console.log("executeScan: pages to scan =", pages.length, pages.map(p => ({ url: p.url, error: p.error })));
   for (const page of pages) {
     if (page.error) continue;
     pagesScanned++;
@@ -40,6 +40,20 @@ export async function executeScan(runId, domain) {
     for (const form of page.forms || []) {
       const formFindings = await fuzzForm(form, page.url);
       for (const f of formFindings) {
+        await pool.query(
+          `INSERT INTO findings (run_id, severity, title, detail, page_url, form_field, evidence)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [runId, f.severity, f.title, f.detail, page.url, f.formField, JSON.stringify(f.evidence)]
+        );
+        findingsCount++;
+      }
+    }
+  }
+
+  for (const page of pages) {
+    for (const form of page.forms || []) {
+      const xssFindings = await testXss(form, page.url);
+      for (const f of xssFindings) {
         await pool.query(
           `INSERT INTO findings (run_id, severity, title, detail, page_url, form_field, evidence)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
