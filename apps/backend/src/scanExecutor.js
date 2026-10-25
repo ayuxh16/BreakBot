@@ -4,6 +4,7 @@ import { scanPage } from "./services/securityScanner.js";
 import { testLoginSqlInjection } from "./services/apiFuzzer.js";
 import { fuzzForm } from "./services/formFuzzer.js";
 import { testXss } from "./services/xssTester.js";
+import { testIdor } from "./services/idorTester.js";
 
 export async function executeScan(runId, domain) {
   let pagesScanned = 0;
@@ -70,6 +71,16 @@ export async function executeScan(runId, domain) {
       `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [runId, f.severity, f.title, f.detail, `${domain.url}/rest/user/login`, JSON.stringify(f.evidence)]
+    );
+    findingsCount++;
+  }
+
+  const idorFindings = await testIdor(domain.url);
+  for (const f of idorFindings) {
+    await pool.query(
+      `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [runId, f.severity, f.title, f.detail, `${domain.url}/rest/basket`, JSON.stringify(f.evidence)]
     );
     findingsCount++;
   }
