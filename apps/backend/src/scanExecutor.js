@@ -1,4 +1,4 @@
-﻿import { pool } from "./db/pool.js";
+import { pool } from "./db/pool.js";
 import { crawlSite } from "./services/crawlerService.js";
 import { scanPage } from "./services/securityScanner.js";
 import { testLoginSqlInjection } from "./services/apiFuzzer.js";
@@ -65,8 +65,8 @@ export async function executeScan(runId, domain) {
     }
   }
 
-  const vulnFindings = await testLoginSqlInjection(domain.url);
-  for (const f of vulnFindings) {
+  const sqli = await testLoginSqlInjection(domain.url);
+  for (const f of sqli.findings) {
     await pool.query(
       `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
        VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -75,8 +75,9 @@ export async function executeScan(runId, domain) {
     findingsCount++;
   }
 
-  const idorFindings = await testIdor(domain.url);
-  for (const f of idorFindings) {
+  console.log("SQLi token for IDOR:", sqli.token ? "present" : "null/missing");
+  const idorFindings = await testIdor(domain.url, sqli.token);
+  console.log("IDOR findings received in scanExecutor:", idorFindings.length); for (const f of idorFindings) {
     await pool.query(
       `INSERT INTO findings (run_id, severity, title, detail, page_url, evidence)
        VALUES ($1, $2, $3, $4, $5, $6)`,
