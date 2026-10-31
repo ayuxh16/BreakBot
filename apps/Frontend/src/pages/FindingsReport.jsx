@@ -1,3 +1,4 @@
+import { API } from "../api.js";
 import { useEffect, useState } from "react";
 
 import { useParams } from "react-router-dom";
@@ -38,7 +39,7 @@ export default function FindingsReport() {
 
     async function poll() {
       try {
-        const res = await fetch(`http://localhost:4000/runs/${runId}`);
+        const res = await fetch(`${API}/runs/${runId}`);
         if (!res.ok) throw new Error("Run not found");
         const json = await res.json();
         setData(json);

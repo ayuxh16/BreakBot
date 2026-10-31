@@ -1,3 +1,4 @@
+import { API } from "../api.js";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
@@ -16,8 +17,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch("http://localhost:4000/domains").then((r) => r.json()),
-      fetch("http://localhost:4000/runs").then((r) => r.json()),
+      fetch(`${API}/domains`).then((r) => r.json()),
+      fetch(`${API}/runs`).then((r) => r.json()),
     ])
       .then(([domainsData, runsData]) => {
         setDomains(domainsData);

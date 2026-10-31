@@ -1,3 +1,4 @@
+import { API } from "../api.js";
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 
@@ -8,7 +9,7 @@ export default function Domains() {
   const [scanningId, setScanningId] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:4000/domains")
+    fetch(`${API}/domains`)
       .then((res) => res.json())
       .then((data) => setDomains(data))
       .catch((err) => setError(err.message))
@@ -19,7 +20,7 @@ export default function Domains() {
     setScanningId(domainId);
     setError(null);
     try {
-      const res = await fetch("http://localhost:4000/runs", {
+      const res = await fetch(`${API}/runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ domainId }),

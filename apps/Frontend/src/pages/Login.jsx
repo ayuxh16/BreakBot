@@ -1,3 +1,4 @@
+import { API } from "../api.js";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -14,7 +15,7 @@ export default function Login() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:4000/auth/request-otp", {
+      const res = await fetch(`${API}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -34,7 +35,7 @@ export default function Login() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:4000/auth/verify-otp", {
+      const res = await fetch(`${API}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code }),

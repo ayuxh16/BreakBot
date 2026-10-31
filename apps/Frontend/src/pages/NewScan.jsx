@@ -1,3 +1,4 @@
+import { API } from "../api.js";
 import { useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
@@ -27,7 +28,7 @@ async function handleVerify() {
   setVerifyResult(null);
   try {
     const sessionToken = localStorage.getItem("breakbot_session");
-    const res = await fetch("http://localhost:4000/verify/start", {
+    const res = await fetch(`${API}/verify/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ domain: targetUrl, sessionToken }),
@@ -46,7 +47,7 @@ async function handleVerify() {
     setChecking(true);
     setCheckResult(null);
     try {
-      const res = await fetch("http://localhost:4000/verify/check", {
+      const res = await fetch(`${API}/verify/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ domain: targetUrl }),
